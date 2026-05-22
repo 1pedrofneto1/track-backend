@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracklead — Database ERD</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f4;
+      color: #1c1c1a;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e5e5e3;
+      padding: 20px 40px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1c1c1a;
+    }
+
+    header span {
+      font-size: 13px;
+      color: #888;
+    }
+
+    main {
+      padding: 40px;
+      overflow-x: auto;
+    }
+
+    #erd {
+      background: #fff;
+      border: 1px solid #e5e5e3;
+      border-radius: 12px;
+      padding: 40px;
+      min-width: 900px;
+    }
+
+    #erd svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Mermaid overrides for legibility */
+    #erd svg text {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+      font-size: 13px !important;
+    }
+
+    #erd svg .er.entityLabel {
+      font-weight: 600 !important;
+      font-size: 14px !important;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Tracklead — Entity Relationship Diagram</h1>
+  <span>Database schema · MVP</span>
+</header>
+
+<main>
+  <div id="erd"></div>
+</main>
+
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+
+await document.fonts.ready;
+
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  themeVariables: {
+    fontSize: '13px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    lineColor: '#73726c',
+    textColor: '#1c1c1a',
+    primaryColor: '#f0f0ee',
+    primaryBorderColor: '#c8c8c4',
+    primaryTextColor: '#1c1c1a',
+    attributeBackgroundColorEven: '#fafaf9',
+    attributeBackgroundColorOdd: '#ffffff',
+  },
+});
+
+const diagram = `erDiagram
+  users {
+    uuid id PK
+    string name
+    string email
+    string phone
+    string document_type
+    string document
+    string zip_code
+    string street
+    string district
+    string number
+    string complement
+    string state
+    string country
+    string city
+    string password
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  plans {
+    uuid id PK
+    string name
+    number price
+    string description
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  plan_limits {
+    uuid id PK
+    uuid plan_id FK
+    string platform
+    number max_pixels
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  stores {
+    uuid id PK
+    uuid user_id FK
+    boolean is_active
+    string name
+    string store_domain
+    string checkout_url
+    string add_to_cart_config
+    number high_ticket
+    string extra_tag_manager
+    string store_platform
+    string checkout_platform
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  subscriptions {
+    uuid id PK
+    uuid store_id FK
+    uuid plan_id FK
+    string status
+    string provider
+    string provider_subscription_id
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  invoices {
+    uuid id PK
+    uuid subscription_id FK
+    string status
+    number amount
+    timestamp due_at
+    timestamp paid_at
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  pixels {
+    uuid id PK
+    uuid store_id FK
+    string label
+    string status
+    string platform
+    string config_purchase_pix
+    string config_purchase_billet
+    string api_token
+    string pixel_code
+    string test_code
+    string merchant_id
+    string conversion_id
+    string pixel_name
+    string conversion_label_purchase
+    string conversion_label_initiate_checkout
+    string conversion_label_add_to_cart
+    string conversion_label_lead
+    string conversion_label_view_item
+    string conversion_label_view_category
+    string measurement_id
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  users ||--o{ stores : "owns"
+  plans ||--o{ plan_limits : "has"
+  plans ||--o{ subscriptions : "applied to"
+  stores ||--o{ subscriptions : "has"
+  stores ||--o{ pixels : "has"
+  subscriptions ||--o{ invoices : "generates"
+`;
+
+const { svg } = await mermaid.render('erd-svg', diagram);
+document.getElementById('erd').innerHTML = svg;
+
+document.querySelectorAll('#erd svg .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+
+document.querySelectorAll('#erd svg .row-rect-odd path, #erd svg .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>
+
+</body>
+</html>
