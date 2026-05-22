@@ -1,0 +1,257 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DocumentType {
+  cpf
+  cnpj
+}
+
+enum StorePlatform {
+  shopify
+  nuvemshop
+}
+
+enum CheckoutPlatform {
+  shopify
+  yampi
+  cartpanda
+  adoorei
+  unicopag
+  nuvemshop
+}
+
+enum AddToCartConfig {
+  one   @map("1")
+  two   @map("2")
+  three @map("3")
+}
+
+enum SubscriptionStatus {
+  active
+  inactive
+  past_due
+}
+
+enum SubscriptionProvider {
+  asaas
+}
+
+enum InvoiceStatus {
+  pending
+  paid
+  overdue
+  cancelled
+}
+
+enum PixelStatus {
+  active
+  disabled
+  updating
+}
+
+enum PixelPlatformType {
+  facebook
+  google_ads
+  google_analytics4
+  tiktok
+  taboola
+  pinterest
+}
+
+enum PlanLimitPlatformType {
+  facebook
+  google_ads
+  google_analytics4
+  tiktok
+  taboola
+  pinterest
+}
+
+enum ConfigPurchasePix {
+  one   @map("1")
+  two   @map("2")
+  three @map("3")
+}
+
+enum ConfigPurchaseBillet {
+  one @map("1")
+  two @map("2")
+}
+
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String
+  email        String       @unique @db.Citext
+  phone        String
+  documentType DocumentType @map("document_type")
+  document     String       @unique @db.Citext
+  password     String
+
+  // Address
+  zipCode    String   @map("zip_code")
+  street     String
+  district   String
+  number     String
+  complement String
+  state      String
+  country    String   @default("Brasil")
+  city       String
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  stores Store[]
+
+  @@map("user")
+}
+
+model Plan {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  price       Decimal  @db.Decimal(10, 2)
+  description String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  limits        PlanLimit[]
+  subscriptions Subscription[]
+
+  @@map("plan")
+}
+
+model PlanLimit {
+  id        String                @id @default(uuid()) @db.Uuid
+  planId    String                @map("plan_id") @db.Uuid
+  platform  PlanLimitPlatformType
+  maxPixels Int                   @default(1) @map("max_pixels")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, platform])
+  @@index([planId])
+  @@map("plan_limit")
+}
+
+model Store {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  isActive         Boolean           @default(true) @map("is_active")
+  name             String
+  storeDomain      String           @map("store_domain") @db.Citext
+  checkoutUrl      String           @map("checkout_url")
+  addToCartConfig  AddToCartConfig?  @map("add_to_cart_config")
+  highTicket       Decimal?          @map("high_ticket") @db.Decimal(10, 2)
+  extraTagManager  String?           @map("extra_tag_manager")
+  storePlatform    StorePlatform    @map("store_platform")
+  checkoutPlatform CheckoutPlatform @map("checkout_platform")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+  pixels        Pixel[]
+
+  @@index([userId])
+  @@index([storeDomain])
+  @@map("store")
+}
+
+model Subscription {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @map("store_id") @db.Uuid
+  planId  String @map("plan_id") @db.Uuid
+
+  status                 SubscriptionStatus
+  provider               SubscriptionProvider
+  providerSubscriptionId String @map("provider_subscription_id") @unique
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  plan     Plan      @relation(fields: [planId], references: [id])
+  invoices Invoice[]
+
+  @@index([storeId])
+  @@index([planId])
+  @@index([providerSubscriptionId])
+  @@map("subscription")
+}
+
+model Invoice {
+  id             String @id @default(uuid()) @db.Uuid
+  subscriptionId String @map("subscription_id") @db.Uuid
+
+  status InvoiceStatus
+  amount Decimal       @db.Decimal(10, 2)
+  dueAt  DateTime      @map("due_at")
+  // Populated when the gateway confirms payment (via webhook)
+  paidAt DateTime?     @map("paid_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@map("invoice")
+}
+
+model Pixel {
+  id      String @id @default(uuid()) @db.Uuid
+  storeId String @map("store_id") @db.Uuid
+
+  label    String
+  status   PixelStatus       @default(active)
+  platform PixelPlatformType
+
+  // Purchase event config (all platforms except google_analytics4)
+  configPurchasePix    ConfigPurchasePix?    @map("config_purchase_pix")
+  configPurchaseBillet ConfigPurchaseBillet? @map("config_purchase_billet")
+
+  // facebook | tiktok | pinterest | taboola
+  apiToken  String? @map("api_token")
+  pixelCode String? @map("pixel_code")
+
+  // facebook | tiktok only
+  testCode String? @map("test_code")
+
+  // google_ads only
+  merchantId                      String? @map("merchant_id")
+  conversionId                    String? @map("conversion_id")
+  pixelName                       String? @map("pixel_name")
+  conversionLabelPurchase         String? @map("conversion_label_purchase")
+  conversionLabelInitiateCheckout String? @map("conversion_label_initiate_checkout")
+  conversionLabelAddToCart        String? @map("conversion_label_add_to_cart")
+  conversionLabelLead             String? @map("conversion_label_lead")
+  conversionLabelViewItem         String? @map("conversion_label_view_item")
+  conversionLabelViewCategory     String? @map("conversion_label_view_category")
+
+  // google_analytics4 only
+  measurementId String? @map("measurement_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([platform])
+  @@index([storeId, platform])
+  @@map("pixel")
+}
